@@ -105,6 +105,13 @@ def main():
         help="the prompt to render"
     )
     parser.add_argument(
+        "--negative_prompt",
+        type=str,
+        nargs="?",
+        default="",
+        help="the negative prompt to render"
+    )
+    parser.add_argument(
         "--outdir",
         type=str,
         nargs="?",
@@ -226,6 +233,12 @@ def main():
         choices=["full", "autocast"],
         default="autocast"
     )
+    parser.add_argument(
+        "--prefix",
+        type=str,
+        default="",
+        help="prefix to output filename",
+    )
     opt = parser.parse_args()
 
     if opt.laion400m:
@@ -259,6 +272,7 @@ def main():
     n_rows = opt.n_rows if opt.n_rows > 0 else batch_size
     if not opt.from_file:
         prompt = opt.prompt
+        negative_prompt = opt.negative_prompt
         assert prompt is not None
         data = [batch_size * [prompt]]
 
@@ -286,7 +300,9 @@ def main():
                 for n in trange(opt.n_iter, desc="Sampling"):
                     for prompts in tqdm(data, desc="data"):
                         uc = None
-                        if opt.scale != 1.0:
+                        if negative_prompt:
+                            uc = model.get_learned_conditioning(batch_size * [negative_prompt])
+                        elif opt.scale != 1.0:
                             uc = model.get_learned_conditioning(batch_size * [""])
                         if isinstance(prompts, tuple):
                             prompts = list(prompts)
@@ -315,7 +331,7 @@ def main():
                                 x_sample = 255. * rearrange(x_sample.cpu().numpy(), 'c h w -> h w c')
                                 img = Image.fromarray(x_sample.astype(np.uint8))
                                 img = put_watermark(img, wm_encoder)
-                                img.save(os.path.join(sample_path, f"{base_count:05}.png"))
+                                img.save(os.path.join(sample_path, f"{opt.prefix}{base_count:05}.png"))
                                 base_count += 1
 
                         if not opt.skip_grid:
@@ -342,3 +358,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
